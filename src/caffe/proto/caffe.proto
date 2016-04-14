@@ -306,7 +306,7 @@ message ParamSpec {
 // NOTE
 // Update the next available ID when you add a new LayerParameter field.
 //
-// LayerParameter next available layer-specific ID: 145 (last added: crop_param)
+// LayerParameter next available layer-specific ID: 146 (last added: anno_data_param)
 message LayerParameter {
   optional string name = 1; // the layer name
   optional string type = 2; // the layer type
@@ -359,6 +359,7 @@ message LayerParameter {
   // engine parameter for selecting the implementation.
   // The default for the engine is set by the ENGINE switch at compile-time.
   optional AccuracyParameter accuracy_param = 102;
+  optional AnnoDataParameter anno_data_param = 145;
   optional ArgMaxParameter argmax_param = 103;
   optional BatchNormParameter batch_norm_param = 139;
   optional BiasParameter bias_param = 141;
@@ -401,6 +402,10 @@ message LayerParameter {
   optional ThresholdParameter threshold_param = 128;
   optional TileParameter tile_param = 138;
   optional WindowDataParameter window_data_param = 129;
+}
+
+message VisualizeBottomParameter {
+    optional img_save_path = 1;
 }
 
 // Message that stores parameters used to apply transformation
@@ -654,6 +659,16 @@ message DataParameter {
   // Prefetch queue (Number of batches to prefetch to host memory, increase if
   // data access bandwidth varies).
   optional uint32 prefetch = 10 [default = 4];
+}
+
+message AnnoDataParameter {
+    optional string image_path = 1;
+    optional string gt_path = 2;
+    optional string list_file = 3;
+    optional uint32 batch_size = 4;
+    // resized image width and height
+    optional uint32 resize_w = 5;
+    optional uint32 resize_h = 6;
 }
 
 message DropoutParameter {
