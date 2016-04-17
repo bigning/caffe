@@ -306,7 +306,7 @@ message ParamSpec {
 // NOTE
 // Update the next available ID when you add a new LayerParameter field.
 //
-// LayerParameter next available layer-specific ID: 146 (last added: anno_data_param)
+// LayerParameter next available layer-specific ID: 147 (last added: visualize_bottom_param)
 message LayerParameter {
   optional string name = 1; // the layer name
   optional string type = 2; // the layer type
@@ -401,11 +401,12 @@ message LayerParameter {
   optional TanHParameter tanh_param = 127;
   optional ThresholdParameter threshold_param = 128;
   optional TileParameter tile_param = 138;
+  optional VisualizeBottomParameter visualize_bottom_param = 146;
   optional WindowDataParameter window_data_param = 129;
 }
 
 message VisualizeBottomParameter {
-    optional img_save_path = 1;
+    optional string img_save_path = 1;
 }
 
 // Message that stores parameters used to apply transformation

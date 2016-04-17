@@ -1,5 +1,5 @@
-#ifndef CAFFE_DATA_LAYER_HPP_
-#define CAFFE_DATA_LAYER_HPP_
+#ifndef ANNO_DATA_LAYER_HPP_ 
+#define ANNO_DATA_LAYER_HPP_ 
 
 #include <vector>
 #include <string>
@@ -21,7 +21,7 @@ class AnnoDataLayer: public BasePrefetchingDataLayer<Dtype> {
  public:
   explicit AnnoDataLayer(const LayerParameter& param);
   virtual ~AnnoDataLayer();
-  virtual void AnnoDataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
+  virtual void DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top);
   // DataLayer uses DataReader instead for sharing for parallelism
   virtual inline bool ShareInParallel() const { return false; }

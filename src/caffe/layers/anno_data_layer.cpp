@@ -1,5 +1,8 @@
 #ifdef USE_OPENCV
 #include <opencv2/core/core.hpp>
+#include <opencv2/highgui/highgui.hpp>
+#include <opencv2/highgui/highgui_c.h>
+#include <opencv2/imgproc/imgproc.hpp>
 #endif  // USE_OPENCV
 #include <stdint.h>
 #include <iostream>
@@ -28,8 +31,9 @@ AnnoDataLayer<Dtype>::~AnnoDataLayer() {
 }
 
 template <typename Dtype>
-void AnnoDataLayer<Dtype>::AnnoDataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
+void AnnoDataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
       const vector<Blob<Dtype>*>& top) {
+  LOG(INFO) << "anno_data_laeyr setup";
   const int batch_size = this->layer_param_.anno_data_param().batch_size();
 
   // load the list file
@@ -73,6 +77,7 @@ void AnnoDataLayer<Dtype>::AnnoDataLayerSetUp(const vector<Blob<Dtype>*>& bottom
       int ymin = 0;
       int xmax = 0;
       int ymax = 0;
+      /*
       std::ifstream gt_file(label_file_name.c_str());
       while (gt_file >> label >> xmin >> ymin >> xmax >> ymax) {
           std::vector<int> tmp_labels;
@@ -86,6 +91,7 @@ void AnnoDataLayer<Dtype>::AnnoDataLayerSetUp(const vector<Blob<Dtype>*>& bottom
       }
       labels_.insert(std::pair<std::string, std::vector<std::vector<int> > >(list_vec_[i], l));
       gt_file.close();
+      */
   }
   LOG(INFO) << "from anno_data_layer: all lables has been read";
   
@@ -93,7 +99,6 @@ void AnnoDataLayer<Dtype>::AnnoDataLayerSetUp(const vector<Blob<Dtype>*>& bottom
   // initialize the index
   img_fetch_index_ = 0;
   // label
-  /*
   if (this->output_labels_) {
     //[TODO]: top label blob size is (1,1,num_labels,6)
     //6 means (img_id, label_id, x, y, w, h),
@@ -111,7 +116,6 @@ void AnnoDataLayer<Dtype>::AnnoDataLayerSetUp(const vector<Blob<Dtype>*>& bottom
       this->prefetch_[i].label_.Reshape(label_shape);
     }
   }
-  */
   ready_to_load_ = 1;
 }
 
@@ -150,6 +154,9 @@ void AnnoDataLayer<Dtype>::load_batch(Batch<Dtype>* batch) {
   if (this->output_labels_) {
     top_label = batch->label_.mutable_cpu_data();
   }
+  // record original image size and transform param if do transformation to input image. 
+  std::vector<std::vector<int> > img_size_translate_param;
+
   for (int item_id = 0; item_id < batch_size; ++item_id) {
     timer.Start();
 
@@ -161,8 +168,16 @@ void AnnoDataLayer<Dtype>::load_batch(Batch<Dtype>* batch) {
     // get a datum
     //Datum& datum = *(reader_.full().pop("Waiting for data"));
     Datum datum;
-    status = ReadImageToDatum(img_name_2, 0, this->layer_param_.anno_data_param().resize_h(), this->layer_param_.anno_data_param().resize_w(), true, "jpg", &datum);
-    CHECK(status) << "Read image failed: " << img_name_2;
+    cv::Mat img = cv::imread(img_name_2);
+    CHECK(img.data) << "Read image failed: " << img_name_2;
+    std::vector<int> img_param;
+    img_param.push_back(img.rows);
+    img_param.push_back(img.cols);
+    img_size_translate_param.push_back(img_param);
+    cv::resize(img, img, cv::Size(this->layer_param().anno_data_param().resize_w(), this->layer_param().anno_data_param().resize_h()));
+    CVMatToDatum(img, &datum);
+    datum.set_label(0); // set a fake label
+    //status = ReadImageToDatum(img_name_2, 0, this->layer_param_.anno_data_param().resize_h(), this->layer_param_.anno_data_param().resize_w(), true, "jpg", &datum);
     
     read_time += timer.MicroSeconds();
     timer.Start();
@@ -187,15 +202,31 @@ void AnnoDataLayer<Dtype>::load_batch(Batch<Dtype>* batch) {
               const std::string img_name = this->layer_param_.anno_data_param().gt_path() + "/" + mini_batch_img_names[i] + ".txt";
               std::ifstream gt_file(img_name.c_str());
               CHECK(gt_file.is_open()) << "Fail to open gt file of " << mini_batch_img_names[i];
-              int label = 0, xmin = 0, ymin = 0, xmax = 0, ymax = 0;
+              int label = 0;
+              float xmin = 0, ymin = 0, xmax = 0, ymax = 0;
               std::vector<std::vector<int> > label_for_img;
               while (gt_file >> label >> xmin >> ymin >> xmax >> ymax) {
                 std::vector<int> tmp_label;
+                
+                // do coordinate transform due to image transform
+                float x_ratio = (float)(this->layer_param().anno_data_param().resize_w())
+                    /(float)(img_size_translate_param[i][1]);
+                float y_ratio = (float)(this->layer_param().anno_data_param().resize_h())
+                    /(float)(img_size_translate_param[i][0]);
+                
+                xmin = (int)(xmin*x_ratio);
+                ymin = (int)(ymin*y_ratio);
+                xmax = (int)(xmax*x_ratio);
+                ymax = (int)(ymax*y_ratio);
                 tmp_label.push_back(label);
                 tmp_label.push_back(xmin);
                 tmp_label.push_back(ymin);
                 tmp_label.push_back(xmax - xmin + 1);
                 tmp_label.push_back(ymax - ymin + 1);
+                if (ymax - ymin > 300) {
+                    LOG(INFO) << mini_batch_img_names[i] << ymax << "-" << ymin;
+                }
+
                 label_for_img.push_back(tmp_label); 
               }
               labels_.insert(std::pair<std::string, std::vector<std::vector<int> > >(mini_batch_img_names[i], label_for_img));
@@ -211,17 +242,24 @@ void AnnoDataLayer<Dtype>::load_batch(Batch<Dtype>* batch) {
       top_label = batch->label_.mutable_cpu_data();
       int idx = 0;
       for (int i = 0; i < mini_batch_img_names.size(); i++) {
+          std::vector<std::vector<int> >& tmp_label = 
+              labels_[mini_batch_img_names[i]];
           for (int obj_index = 0; obj_index < labels_[mini_batch_img_names[i]].size(); obj_index ++) {
-              std::vector<std::vector<int> >& tmp_label = 
-                  labels_[mini_batch_img_names[i]];
-              top_label[idx++] = obj_index;
+              top_label[idx++] = i;
               top_label[idx++] = tmp_label[obj_index][0];
               top_label[idx++] = tmp_label[obj_index][1];
               top_label[idx++] = tmp_label[obj_index][2];
               top_label[idx++] = tmp_label[obj_index][3];
               top_label[idx++] = tmp_label[obj_index][4];
+              if (top_label[idx-1] > 300) {
+                  LOG(INFO) << mini_batch_img_names[i];
+                  for (int t = 0; t < 5; t++) {
+                      LOG(INFO) << tmp_label[obj_index][t];
+                  }
+              }
           }
       }
+
   }
   timer.Stop();
   batch_timer.Stop();
