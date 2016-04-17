@@ -174,6 +174,7 @@ int train() {
   shared_ptr<caffe::Solver<float> >
       solver(caffe::SolverRegistry<float>::CreateSolver(solver_param));
   solver->net()->ForwardBackward(); 
+  solver->net()->ForwardBackward(); 
  
   /*  
   vector<int> gpus;
@@ -421,4 +422,3 @@ int main(int argc, char** argv) {
     gflags::ShowUsageWithFlagsRestrict(argv[0], "tools/caffe");
   }
 } 
-
