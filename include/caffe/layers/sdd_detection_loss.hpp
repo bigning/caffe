@@ -2,6 +2,7 @@
 #define SDD_DETECTION_LOSS_HPP_ 
 
 #include <vector>
+#include <map>
 
 #include "caffe/blob.hpp"
 #include "caffe/layer.hpp"
@@ -61,6 +62,7 @@ class SddDetectionLossLayer: public LossLayer<Dtype> {
   virtual inline const char* type() const { return "SddDetectionLoss"; }
   virtual inline int MinBottomBlobs() const { return 1; }
   virtual inline int ExactNumTopBlobs() const { return -1; }
+  virtual inline int ExactNumBottomBlobs() const { return -1; }
   virtual inline int MinTopBlobs() const { return 1; }
   virtual inline int MaxTopBlobs() const { return 2; }
 
@@ -123,6 +125,10 @@ class SddDetectionLossLayer: public LossLayer<Dtype> {
 
 
   // newly added for this layer
+  void generate_default_windows();
+  void get_match_and_negatives(const vector<Blob<Dtype>*>& bottom);
+  void get_match_score(std::vector<std::vector<float> >& scores, int img_idx);
+
   shared_ptr<Layer<Dtype> > conf_loss_layer_;
   shared_ptr<Layer<Dtype> > loc_loss_layer_;
 
@@ -139,6 +145,29 @@ class SddDetectionLossLayer: public LossLayer<Dtype> {
   Blob<Dtype> loc_pred_;
   Blob<Dtype> loc_gt_;
   Blob<Dtype> loc_loss_top_;
+
+
+  // define the struct to index a default window
+  struct DefaultWindowIndexStruct {
+      int from_index; // which bottom layer this window is from
+      int ratio_scale_index; // 
+      // the default window center normalized coordinate
+      float center_row;
+      float center_col;
+      int window_index;
+  };
+  std::vector<DefaultWindowIndexStruct> default_windows_;
+  std::map<int, DefaultWindowIndexStruct&> gt2default_windows_;
+
+  struct GtData {
+    int img_idx;
+    int label;
+    float xmin;
+    float ymin;
+    float xmax;
+    float ymax;
+  };
+  std::vector<std::vector<GtData> > gt_data_;
 };
 
 }  // namespace caffe

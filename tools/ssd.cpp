@@ -175,8 +175,10 @@ int train() {
   }
   shared_ptr<caffe::Solver<float> >
       solver(caffe::SolverRegistry<float>::CreateSolver(solver_param));
-  solver->net()->ForwardBackward(); 
-  solver->net()->ForwardBackward(); 
+
+  //solver->net()->ForwardBackward(); 
+  //solver->net()->ForwardBackward(); 
+  solver->net()->Forward();
 
   //solver->Snapshot();
  
@@ -426,3 +428,5 @@ int main(int argc, char** argv) {
     gflags::ShowUsageWithFlagsRestrict(argv[0], "tools/caffe");
   }
 } 
+
+

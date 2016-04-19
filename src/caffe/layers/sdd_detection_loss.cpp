@@ -2,6 +2,8 @@
 #include <cfloat>
 #include <vector>
 
+#include <math.h>
+
 #include "caffe/layers/sdd_detection_loss.hpp"
 #include "caffe/util/math_functions.hpp"
 
@@ -15,7 +17,7 @@ void SddDetectionLossLayer<Dtype>::LayerSetUp(
 
     // Set Up conf_loss_layer_
     LayerParameter conf_loss_param(this->layer_param_);
-    conf_loss_param.set_type("SoftmaxWothLoss");
+    conf_loss_param.set_type("SoftmaxWithLoss");
     conf_loss_param.mutable_loss_param()->set_normalization(LossParameter_NormalizationMode_NONE);
     conf_loss_layer_ = LayerRegistry<Dtype>::CreateLayer(conf_loss_param);
 
@@ -57,33 +59,10 @@ void SddDetectionLossLayer<Dtype>::LayerSetUp(
     loc_bottom_vec_.push_back(&loc_pred_);
     loc_bottom_vec_.push_back(&loc_gt_);
 
-    loc_top_vec_.push_back(loc_loss_top_);
+    loc_top_vec_.push_back(&loc_loss_top_);
 
-    /*
-  LossLayer<Dtype>::LayerSetUp(bottom, top);
-  LayerParameter softmax_param(this->layer_param_);
-  softmax_param.set_type("Softmax");
-  softmax_layer_ = LayerRegistry<Dtype>::CreateLayer(softmax_param);
-  softmax_bottom_vec_.clear();
-  softmax_bottom_vec_.push_back(bottom[0]);
-  softmax_top_vec_.clear();
-  softmax_top_vec_.push_back(&prob_);
-  softmax_layer_->SetUp(softmax_bottom_vec_, softmax_top_vec_);
 
-  has_ignore_label_ =
-    this->layer_param_.loss_param().has_ignore_label();
-  if (has_ignore_label_) {
-    ignore_label_ = this->layer_param_.loss_param().ignore_label();
-  }
-  if (!this->layer_param_.loss_param().has_normalization() &&
-      this->layer_param_.loss_param().has_normalize()) {
-    normalization_ = this->layer_param_.loss_param().normalize() ?
-                     LossParameter_NormalizationMode_VALID :
-                     LossParameter_NormalizationMode_BATCH_SIZE;
-  } else {
-    normalization_ = this->layer_param_.loss_param().normalization();
-  }
-  */
+    generate_default_windows();
 }
 
 template <typename Dtype>
@@ -125,6 +104,7 @@ Dtype SddDetectionLossLayer<Dtype>::get_normalizer(
 template <typename Dtype>
 void SddDetectionLossLayer<Dtype>::Forward_cpu(
     const vector<Blob<Dtype>*>& bottom, const vector<Blob<Dtype>*>& top) {
+    get_match_and_negatives(bottom);
 
     //NOTE! NOTE!
     //NOTE! NOTE! NOTE!
@@ -132,6 +112,7 @@ void SddDetectionLossLayer<Dtype>::Forward_cpu(
     //input of loc_layer_loss_ must have the size of (1, n*4), n is the number of matched window
 
 
+    /*
   // The forward pass computes the softmax prob values.
   softmax_layer_->Forward(softmax_bottom_vec_, softmax_top_vec_);
   const Dtype* prob_data = prob_.cpu_data();
@@ -156,6 +137,7 @@ void SddDetectionLossLayer<Dtype>::Forward_cpu(
   if (top.size() == 2) {
     top[1]->ShareData(prob_);
   }
+  */
 }
 
 template <typename Dtype>
@@ -190,7 +172,87 @@ void SddDetectionLossLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
                         get_normalizer(normalization_, count);
     caffe_scal(prob_.count(), loss_weight, bottom_diff);
   }
+
 }
+
+template <typename Dtype>
+void SddDetectionLossLayer<Dtype>::generate_default_windows() {
+    // construct the default windows
+    int window_index = 0;
+    DetectionParam detection_param = this->layer_param_.detection_param();
+
+    DefaultWindowIndexStruct default_win;
+
+    for (int from_index = 0;
+            from_index < detection_param.default_box_param().size();
+            from_index++) {
+        DefaultBoxParam default_box_param = 
+            detection_param.default_box_param(from_index);
+        for (int ratio_scale_index = 0;
+                ratio_scale_index < default_box_param.ratio_scale().size();
+                ratio_scale_index++) {
+            for (int row = 0; row < default_box_param.img_height(); row++) {
+                for (int col = 0; col < default_box_param.img_width(); col++) {
+                    float center_row = ((float)row + 0.5) 
+                        / (float)default_box_param.img_height();
+                    float center_col = ((float)col + 0.5) / 
+                        (float)default_box_param.img_width();
+
+                    default_win.from_index = from_index;
+                    default_win.ratio_scale_index = ratio_scale_index;
+                    default_win.center_row = center_row;
+                    default_win.center_col = center_col;
+                    default_win.window_index = window_index;
+
+                    default_windows_.push_back(default_win);
+
+                    window_index++;
+                }
+            }
+        }
+    } 
+}
+
+template <typename Dtype> 
+void SddDetectionLossLayer<Dtype>::get_match_and_negatives(
+        const vector<Blob<Dtype>*>& bottom) {
+    int mini_batch_size = bottom[0]->num();
+    gt_data_ = std::vector<std::vector<GtData> >(mini_batch_size);
+
+    // convert ground_truth data to gt_data_
+    Blob<Dtype>* p_label_blob = bottom[bottom.size() - 1];
+    for (int i = 0; i <  p_label_blob->height(); i++) {
+        GtData d;
+        d.img_idx = p_label_blob->data_at(0, 0, i, 0);
+        d.label = p_label_blob->data_at(0, 0, i, 1);
+        d.xmin = p_label_blob->data_at(0, 0, i, 2);
+        d.ymin = p_label_blob->data_at(0, 0, i, 3);
+        d.xmax = p_label_blob->data_at(0, 0, i, 4);
+        d.ymax = p_label_blob->data_at(0, 0, i, 5);
+        gt_data_[d.img_idx].push_back(d);
+    }
+
+    for (int img_idx = 0; img_idx < mini_batch_size; img_idx++) {
+        //LOG(INFO) << gt_data_[img_idx].size() << " in " << img_idx;
+        std::vector<std::vector<float> > match_scores(default_windows_.size());
+        for (int i = 0; i < default_windows_.size(); i++) {
+            match_scores.push_back(std::vector<float>(gt_data_[img_idx].size(), 0));
+            get_match_score(match_scores, img_idx);
+        }
+    }
+}
+
+template <typename Dtype>
+void SddDetectionLossLayer<Dtype>::get_match_score(
+        std::vector<std::vector<float> >& scores, int img_idx) {
+    std::vector<GtData> gt_data = gt_data_[img_idx];
+
+    for (int i = 0; i < default_windows_.size(); i++) {
+        for (int j = 0; j < gt_data.size(); j++) {
+        }
+    }
+}
+
 
 INSTANTIATE_CLASS(SddDetectionLossLayer);
 REGISTER_LAYER_CLASS(SddDetectionLoss);
