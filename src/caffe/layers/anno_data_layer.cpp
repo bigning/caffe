@@ -204,9 +204,9 @@ void AnnoDataLayer<Dtype>::load_batch(Batch<Dtype>* batch) {
               CHECK(gt_file.is_open()) << "Fail to open gt file of " << mini_batch_img_names[i];
               int label = 0;
               float xmin = 0, ymin = 0, xmax = 0, ymax = 0;
-              std::vector<std::vector<int> > label_for_img;
+              std::vector<std::vector<float> > label_for_img;
               while (gt_file >> label >> xmin >> ymin >> xmax >> ymax) {
-                std::vector<int> tmp_label;
+                std::vector<float> tmp_label;
                 
                 // do coordinate transform due to image transform
                 float x_ratio = (float)(this->layer_param().anno_data_param().resize_w())
@@ -214,22 +214,24 @@ void AnnoDataLayer<Dtype>::load_batch(Batch<Dtype>* batch) {
                 float y_ratio = (float)(this->layer_param().anno_data_param().resize_h())
                     /(float)(img_size_translate_param[i][0]);
                 
-                xmin = (int)(xmin*x_ratio);
-                ymin = (int)(ymin*y_ratio);
-                xmax = (int)(xmax*x_ratio);
-                ymax = (int)(ymax*y_ratio);
+                float w_mmax = (float)(this->layer_param().anno_data_param().resize_w());
+                float h_mmax = (float)(this->layer_param().anno_data_param().resize_h());
+                xmin = (xmin*x_ratio)/w_mmax;
+                ymin = (ymin*y_ratio)/h_mmax;
+                xmax = (xmax*x_ratio)/w_mmax;
+                ymax = (ymax*y_ratio)/h_mmax;
                 tmp_label.push_back(label);
                 tmp_label.push_back(xmin);
                 tmp_label.push_back(ymin);
-                tmp_label.push_back(xmax - xmin + 1);
-                tmp_label.push_back(ymax - ymin + 1);
+                tmp_label.push_back(xmax);
+                tmp_label.push_back(ymax);
                 if (ymax - ymin > 300) {
                     LOG(INFO) << mini_batch_img_names[i] << ymax << "-" << ymin;
                 }
 
                 label_for_img.push_back(tmp_label); 
               }
-              labels_.insert(std::pair<std::string, std::vector<std::vector<int> > >(mini_batch_img_names[i], label_for_img));
+              labels_.insert(std::pair<std::string, std::vector<std::vector<float> > >(mini_batch_img_names[i], label_for_img));
           }
           obj_nums += labels_[mini_batch_img_names[i]].size();
       }
@@ -242,7 +244,7 @@ void AnnoDataLayer<Dtype>::load_batch(Batch<Dtype>* batch) {
       top_label = batch->label_.mutable_cpu_data();
       int idx = 0;
       for (int i = 0; i < mini_batch_img_names.size(); i++) {
-          std::vector<std::vector<int> >& tmp_label = 
+          std::vector<std::vector<float> >& tmp_label = 
               labels_[mini_batch_img_names[i]];
           for (int obj_index = 0; obj_index < labels_[mini_batch_img_names[i]].size(); obj_index ++) {
               top_label[idx++] = i;

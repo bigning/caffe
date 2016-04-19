@@ -47,11 +47,12 @@ void VisualizeBottomLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom
                 continue;
             }
             int label_name = p_label->data_at(0, 0, label_index, 1);
-            int x = p_label->data_at(0,0, label_index, 2);
-            int y = p_label->data_at(0,0, label_index, 3);
-            int w = p_label->data_at(0,0, label_index, 4);
-            int h = p_label->data_at(0,0, label_index, 5);
-            cv::rectangle(img, cv::Rect(x,y,w,h), cv::Scalar(0,0,255));
+            float x1 = p_label->data_at(0,0, label_index, 2)*(float)(columns);
+            float y1 = p_label->data_at(0,0, label_index, 3)*(float)(rows);
+
+            float x2 = p_label->data_at(0,0, label_index, 4)*(float)(columns);
+            float y2 = p_label->data_at(0,0, label_index, 5)*(float)(rows);
+            cv::rectangle(img, cv::Rect(x1,y1,x2-x1+1,y2-y1+1), cv::Scalar(0,0,255));
        } 
        char filename[1000];
        snprintf(filename, 1000, "%s/%d_%d.jpg",this->layer_param().visualize_bottom_param().img_save_path().c_str(), i, rand()%1000);

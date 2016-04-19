@@ -241,6 +241,23 @@ message SolverParameter {
   optional SolverType solver_type = 30 [default = SGD];
 }
 
+message RatioScale {
+    optional float ratio = 1;
+    optional float scale = 2;
+}
+
+message DefaultBoxParam {
+    optional string from = 1;
+    repeated RatioScale ratio_scale = 2;
+    optional int32 img_width = 3;
+    optional int32 img_height = 4;
+}
+
+message DetectionParam{
+    optional int32 label_num = 1;
+    repeated DefaultBoxParam default_box_param = 2; 
+}
+
 // A message that stores the solver snapshots
 message SolverState {
   optional int32 iter = 1; // The current iteration
@@ -306,7 +323,7 @@ message ParamSpec {
 // NOTE
 // Update the next available ID when you add a new LayerParameter field.
 //
-// LayerParameter next available layer-specific ID: 147 (last added: visualize_bottom_param)
+// LayerParameter next available layer-specific ID: 148 (last added: detection_param)
 message LayerParameter {
   optional string name = 1; // the layer name
   optional string type = 2; // the layer type
@@ -368,6 +385,7 @@ message LayerParameter {
   optional ConvolutionParameter convolution_param = 106;
   optional CropParameter crop_param = 144;
   optional DataParameter data_param = 107;
+  optional DetectionParam detection_param = 147;
   optional DropoutParameter dropout_param = 108;
   optional DummyDataParameter dummy_data_param = 109;
   optional EltwiseParameter eltwise_param = 110;

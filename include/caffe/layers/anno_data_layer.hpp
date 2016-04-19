@@ -37,7 +37,7 @@ class AnnoDataLayer: public BasePrefetchingDataLayer<Dtype> {
   // newly added member variable
   std::vector<std::string> list_vec_;
   int img_fetch_index_;
-  std::map<std::string, std::vector<std::vector<int> > > labels_;
+  std::map<std::string, std::vector<std::vector<float> > > labels_;
   int ready_to_load_;
 };
 

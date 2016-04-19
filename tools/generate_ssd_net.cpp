@@ -10,8 +10,12 @@ namespace bp = boost::python;
 #include <map>
 #include <string>
 #include <vector>
-#include <google/protobuf/text_format.h>
+
 #include <iostream>
+#include <fcntl.h>
+#include <fstream>
+#include <google/protobuf/text_format.h>
+#include <google/protobuf/io/zero_copy_stream_impl.h>
 
 #include "boost/algorithm/string.hpp"
 #include "caffe/caffe.hpp"
@@ -36,6 +40,8 @@ DEFINE_string(solver, "",
     "The solver definition protocol buffer text file.");
 DEFINE_string(model, "",
     "The model definition protocol buffer text file..");
+DEFINE_string(output, "",
+    "ssd model definition protocol buffer output path");
 DEFINE_string(snapshot, "",
     "Optional; the snapshot solver state to resume training.");
 DEFINE_string(weights, "",
@@ -154,6 +160,81 @@ caffe::SolverAction::Enum GetRequestedAction(
 
 // Train / Finetune a model.
 int train() {
+   CHECK_GT(FLAGS_model.size(), 0) << "Need a base model definition";
+   int file_descriptor = open(FLAGS_model.c_str(), O_RDONLY);
+   CHECK(file_descriptor > 0) << "can not open file: " << FLAGS_model;
+   google::protobuf::io::FileInputStream file_input(file_descriptor);
+   file_input.SetCloseOnDelete(true);
+
+   caffe::NetParameter net_param;
+   google::protobuf::TextFormat::Parse(&file_input, &net_param);
+
+   LOG(INFO) << net_param.layer().size();
+   std::string net_str = "";
+   //google::protobuf::TextFormat::PrintToString(net_param, &net_str);
+
+   caffe::LayerParameter detection_layer_param;
+   detection_layer_param = net_param.layer(net_param.layer().size() - 1);
+
+   // remove detection layer temporarily
+   net_param.mutable_layer()->RemoveLast(); 
+
+   for (int i = 0; i < detection_layer_param.detection_param().default_box_param().size(); i++) {
+       caffe::DefaultBoxParam box_param = detection_layer_param.detection_param().default_box_param(i);
+       caffe::LayerParameter layer_param;
+       layer_param.set_name("det_" + box_param.from());
+       std::string from_str = box_param.from();
+       std::string* tmp_str = layer_param.mutable_bottom()->Add();
+       *tmp_str = from_str;
+
+       tmp_str = layer_param.mutable_top()->Add();
+       *tmp_str = "det_" + from_str;
+
+       layer_param.set_type("Convolution");
+
+       caffe::ConvolutionParameter conv_param;
+       conv_param.set_num_output(detection_layer_param.detection_param().label_num() + 4);
+       unsigned int* p_int = conv_param.mutable_pad()->Add();
+       *p_int = 1;
+       p_int = conv_param.mutable_kernel_size()->Add();
+       *p_int = 3;
+       p_int = conv_param.mutable_stride()->Add();
+       *p_int = 1;
+
+       caffe::FillerParameter filler_param;
+       filler_param.set_type("xavier");
+       caffe::FillerParameter* p_filler = conv_param.mutable_weight_filler();
+       *p_filler = filler_param;
+
+       caffe::ConvolutionParameter* p_conv_param = layer_param.mutable_convolution_param();
+       *p_conv_param = conv_param;
+
+       tmp_str = detection_layer_param.mutable_bottom()->Add();
+       *tmp_str = "det_" + from_str;
+       
+       caffe::LayerParameter* p_layer_param;
+       p_layer_param = net_param.mutable_layer()->Add();
+       *p_layer_param = layer_param;
+   }
+   
+   std::string* tmp_str = detection_layer_param.mutable_bottom()->Add();
+   *tmp_str = "label";
+
+   caffe::LayerParameter* p_layer_param;
+   p_layer_param = net_param.mutable_layer()->Add();
+   *p_layer_param = detection_layer_param;
+
+
+    
+   LOG(INFO) << net_param.layer().size();
+   std::string final_str = "";
+   google::protobuf::TextFormat::PrintToString(net_param, &final_str);
+   std::ofstream out(FLAGS_output.c_str());
+   out << final_str;
+   out.close();
+
+
+  /*
   CHECK_GT(FLAGS_solver.size(), 0) << "Need a solver definition to train.";
   CHECK(!FLAGS_snapshot.size() || !FLAGS_weights.size())
       << "Give a snapshot to resume training or weights to finetune "
@@ -173,14 +254,7 @@ int train() {
           FLAGS_gpu = "" + boost::lexical_cast<string>(0);
       }
   }
-  shared_ptr<caffe::Solver<float> >
-      solver(caffe::SolverRegistry<float>::CreateSolver(solver_param));
-  solver->net()->ForwardBackward(); 
-  solver->net()->ForwardBackward(); 
 
-  //solver->Snapshot();
- 
-  /*  
   vector<int> gpus;
   get_gpus(&gpus);
   if (gpus.size() == 0) {
@@ -228,8 +302,8 @@ int train() {
     LOG(INFO) << "Starting Optimization";
     solver->Solve();
   }
-  */
   LOG(INFO) << "Optimization Done.";
+  */
   return 0;
 }
 RegisterBrewFunction(train);
@@ -422,7 +496,7 @@ int main(int argc, char** argv) {
       return 1;
     }
 #endif
-  } else { 
+  } else {
     gflags::ShowUsageWithFlagsRestrict(argv[0], "tools/caffe");
   }
-} 
+}
