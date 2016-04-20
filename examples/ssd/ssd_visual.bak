@@ -1,0 +1,26 @@
+name: "ssd"
+
+layer {
+  name: "ssd_data"
+  type: "AnnoData"
+  top: "data"
+  top: "label"
+  anno_data_param {
+    image_path: "/home/bigning/projects/single_shot_multibox_detector/data/examples/"
+    batch_size: 20
+    gt_path: "/home/bigning/projects/single_shot_multibox_detector/data/gt/"
+    list_file: "/home/bigning/projects/single_shot_multibox_detector/data/examples/list.txt"
+    resize_w: 300
+    resize_h: 300
+  }
+}
+
+layer {
+    name: "vis"
+    type: "VisualizeBottom"
+    bottom: "data"
+    bottom: "label"
+    visualize_bottom_param {
+        img_save_path: "/home/bigning/projects/single_shot_multibox_detector/data/tmp/"
+    }
+}

@@ -128,6 +128,23 @@ class SddDetectionLossLayer: public LossLayer<Dtype> {
   void generate_default_windows();
   void get_match_and_negatives(const vector<Blob<Dtype>*>& bottom);
   void get_match_score(std::vector<std::vector<float> >& scores, int img_idx);
+  // get match windows indices and return the number of matched default windows
+  int get_match_result(std::vector<std::vector<float> >& scores, int img_idx);
+  void check_match_result(const std::vector<Blob<Dtype>*>& bottom); // draw matchecd rectangle on image
+
+  // match_num: the number of matched default windows, it's used to decide how many negative windows will be selected
+  // img_idx: which image in the mini_batch_data is being processed.
+  void get_top_score_negatives(const std::vector<Blob<Dtype>*>& bottom, int match_num, int img_idx);
+
+  //generate bottom data for two loss layers
+  void prepare_for_conf_loss(const std::vector<Blob<Dtype>*>& bottom);
+  void prepare_for_loc_loss(const std::vector<Blob<Dtype>*>& bottom);
+
+  // to clear some vector or map variables
+  void forward_init();
+
+  //
+  void initialize_bottom_diff(const vector<Blob<Dtype>*>& bottom);
 
   shared_ptr<Layer<Dtype> > conf_loss_layer_;
   shared_ptr<Layer<Dtype> > loc_loss_layer_;
@@ -146,6 +163,9 @@ class SddDetectionLossLayer: public LossLayer<Dtype> {
   Blob<Dtype> loc_gt_;
   Blob<Dtype> loc_loss_top_;
 
+  //Detection parameter
+  DetectionParam detect_param_;
+
 
   // define the struct to index a default window
   struct DefaultWindowIndexStruct {
@@ -155,19 +175,36 @@ class SddDetectionLossLayer: public LossLayer<Dtype> {
       float center_row;
       float center_col;
       int window_index;
+
+      // the default window center original coordinate (0,1,2,,,)
+      int row;
+      int col;
   };
   std::vector<DefaultWindowIndexStruct> default_windows_;
-  std::map<int, DefaultWindowIndexStruct&> gt2default_windows_;
+  std::map<int, std::vector<int> > gt2default_windows_;
+
+  std::vector<int> img_ind_for_label_data_;
 
   struct GtData {
     int img_idx;
     int label;
+    int gt_index; // index in 3rd dimension of "label" blob
     float xmin;
     float ymin;
     float xmax;
     float ymax;
   };
+
   std::vector<std::vector<GtData> > gt_data_;
+  int match_num_;
+  std::vector<int> is_matched_; // record match result for each default box
+
+  struct NegWin {
+      // record which image in the mini_batch_data this negative window is from
+      int img_index; 
+      int window_index; 
+  };
+  std::vector<NegWin> neg_windows_;
 };
 
 }  // namespace caffe

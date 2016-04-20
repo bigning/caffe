@@ -1,5 +1,4 @@
 name: "ssd"
-
 layer {
   name: "ssd_data"
   type: "AnnoData"
@@ -7,22 +6,12 @@ layer {
   top: "label"
   anno_data_param {
     image_path: "/home/bigning/projects/single_shot_multibox_detector/data/examples/"
-    batch_size: 5
     gt_path: "/home/bigning/projects/single_shot_multibox_detector/data/gt/"
     list_file: "/home/bigning/projects/single_shot_multibox_detector/data/examples/list.txt"
+    batch_size: 5
     resize_w: 300
     resize_h: 300
   }
-}
-
-layer {
-    name: "vis"
-    type: "VisualizeBottom"
-    bottom: "data"
-    bottom: "label"
-    visualize_bottom_param {
-        img_save_path: "/home/bigning/projects/single_shot_multibox_detector/data/tmp/"
-    }
 }
 layer {
   name: "conv1_1"
@@ -483,7 +472,7 @@ layer {
   bottom: "conv4_3"
   top: "det_conv4_3"
   convolution_param {
-    num_output: 25
+    num_output: 75
     pad: 1
     kernel_size: 3
     stride: 1
@@ -498,7 +487,7 @@ layer {
   bottom: "conv7"
   top: "det_conv7"
   convolution_param {
-    num_output: 25
+    num_output: 150
     pad: 1
     kernel_size: 3
     stride: 1
@@ -513,7 +502,7 @@ layer {
   bottom: "conv8_2"
   top: "det_conv8_2"
   convolution_param {
-    num_output: 25
+    num_output: 150
     pad: 1
     kernel_size: 3
     stride: 1
@@ -528,7 +517,7 @@ layer {
   bottom: "conv9_2"
   top: "det_conv9_2"
   convolution_param {
-    num_output: 25
+    num_output: 150
     pad: 1
     kernel_size: 3
     stride: 1
@@ -543,7 +532,7 @@ layer {
   bottom: "conv10_2"
   top: "det_conv10_2"
   convolution_param {
-    num_output: 25
+    num_output: 150
     pad: 1
     kernel_size: 3
     stride: 1
@@ -558,7 +547,7 @@ layer {
   bottom: "pool11"
   top: "det_pool11"
   convolution_param {
-    num_output: 25
+    num_output: 150
     pad: 1
     kernel_size: 3
     stride: 1
@@ -587,11 +576,11 @@ layer {
       }
       ratio_scale {
         ratio: 2
-        scale: 0.1
+        scale: 0.2
       }
       ratio_scale {
         ratio: 0.5
-        scale: 0.1
+        scale: 0.2
       }
       img_width: 38
       img_height: 38

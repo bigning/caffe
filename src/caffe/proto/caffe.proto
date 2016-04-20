@@ -256,6 +256,7 @@ message DefaultBoxParam {
 message DetectionParam{
     optional int32 label_num = 1;
     repeated DefaultBoxParam default_box_param = 2; 
+    optional int32 neg_pos_ratio = 3 [default = 3];
 }
 
 // A message that stores the solver snapshots

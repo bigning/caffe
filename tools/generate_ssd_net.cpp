@@ -193,7 +193,9 @@ int train() {
        layer_param.set_type("Convolution");
 
        caffe::ConvolutionParameter conv_param;
-       conv_param.set_num_output(detection_layer_param.detection_param().label_num() + 4);
+       int out_num = (detection_layer_param.detection_param().label_num() + 4)
+           * box_param.ratio_scale().size();
+       conv_param.set_num_output(out_num);
        unsigned int* p_int = conv_param.mutable_pad()->Add();
        *p_int = 1;
        p_int = conv_param.mutable_kernel_size()->Add();
