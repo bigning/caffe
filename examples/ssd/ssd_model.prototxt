@@ -482,6 +482,20 @@ layer {
   }
 }
 layer {
+  name: "det_conv_4_3_norm"
+  type: "Normalize"
+  bottom: "det_conv4_3"
+  top: "det_conv4_3_norm"
+  norm_param {
+      scale_filler {
+        type: "constant"
+        value: 20
+      }
+     across_spatial: false
+     channel_shared: false
+  }
+}
+layer {
   name: "det_conv7"
   type: "Convolution"
   bottom: "conv7"
@@ -559,7 +573,7 @@ layer {
 layer {
   name: "detection"
   type: "SddDetectionLoss"
-  bottom: "det_conv4_3"
+  bottom: "det_conv4_3_norm"
   bottom: "det_conv7"
   bottom: "det_conv8_2"
   bottom: "det_conv9_2"
