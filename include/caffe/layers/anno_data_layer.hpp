@@ -33,11 +33,12 @@ class AnnoDataLayer: public BasePrefetchingDataLayer<Dtype> {
  protected:
   virtual void load_batch(Batch<Dtype>* batch);
   //DataReader reader_;
+  std::vector<std::vector<float> > read_and_transform_img(std::string& img_id, cv::Mat& img);
 
   // newly added member variable
   std::vector<std::string> list_vec_;
   int img_fetch_index_;
-  std::map<std::string, std::vector<std::vector<float> > > labels_;
+  //std::map<std::string, std::vector<std::vector<float> > > labels_;
   int ready_to_load_;
 };
 

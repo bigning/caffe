@@ -119,9 +119,141 @@ void AnnoDataLayer<Dtype>::DataLayerSetUp(const vector<Blob<Dtype>*>& bottom,
   ready_to_load_ = 1;
 }
 
+template <typename Dtype> std::vector<std::vector<float> >
+AnnoDataLayer<Dtype>::read_and_transform_img(std::string& img_id,
+        cv::Mat& img) {
+    std::vector<std::vector<float> > labels;
+    
+    std::string full_img_name = this->layer_param_.anno_data_param().image_path() +
+        "/" + img_id + ".jpg";
+    img = cv::imread(full_img_name);
+    CHECK(img.data) << "load image failed: " << full_img_name;
+
+    int dest_size_w = this->layer_param_.anno_data_param().resize_w();
+    int dest_size_h = this->layer_param_.anno_data_param().resize_h();
+
+    // read labels
+    labels.clear();
+    std::string label_name = this->layer_param_.anno_data_param().gt_path() + "/"
+        + img_id + ".txt";
+
+    std::ifstream gt_file(label_name.c_str());
+    CHECK(gt_file.is_open()) << "Fail to open gt file of " << label_name;
+    int label = 0;
+    float xmin = 0, ymin = 0, xmax = 0, ymax = 0;
+    while (gt_file >> label >> xmin >> ymin >> xmax >> ymax) {
+        std::vector<float> tmp_label;
+        
+        float w_mmax = (float)(img.cols);
+        float h_mmax = (float)(img.rows);
+        xmin = (xmin)/w_mmax;
+        ymin = (ymin)/h_mmax;
+        xmax = (xmax)/w_mmax;
+        ymax = (ymax)/h_mmax;
+        tmp_label.push_back(label);
+        tmp_label.push_back(xmin);
+        tmp_label.push_back(ymin);
+        tmp_label.push_back(xmax);
+        tmp_label.push_back(ymax);
+
+        labels.push_back(tmp_label); 
+  }
+
+    // img transform
+    // use original image or randomly select a patch
+    int rand1 = rand()%10;
+    if (rand1 <= 4) {
+        // orignal image
+        cv::resize(img, img, cv::Size(dest_size_w, dest_size_h)); 
+        /*
+        float x_ratio = ((float)(dest_size_w)) / (float)img.cols;
+        float y_ratio = ((float)(dest_size_h)) / (float)img.rows;
+        for (int i = 0; i < labels.size(); i++) {
+            labels[i][1] *= x_ratio;
+            labels[i][2] *= y_ratio;
+            labels[i][3] *= x_ratio;
+            labels[i][4] *= y_ratio;
+        }
+        */
+    }
+    else {
+        // randomly select a patch from original image
+        float rnd_size = ((double)rand() / (RAND_MAX)) * 0.6 + 0.4;
+        float rnd_ratio = ((double)rand() / (RAND_MAX)) * 1.5 + 0.5;
+        float width = (rnd_size / sqrt(rnd_ratio)) * (float)(img.cols);
+        float height = (rnd_size * sqrt(rnd_ratio)) * (float)(img.rows);
+
+        if (width > img.cols - 0.1) {
+            width = img.cols;
+        }
+        if (height > img.rows - 0.1) {
+            height = img.rows;
+        }
+
+        float xmin_range = ((float)img.cols) - width;
+        float ymin_range = ((float)img.rows) - height;
+
+        float xstart_f = ((double)rand()/(RAND_MAX)) * xmin_range;
+        float ystart_f = ((double)rand()/(RAND_MAX)) * ymin_range;
+        int xstart = (xstart_f > 0 ? xstart_f:0); 
+        int ystart = (ystart_f > 0 ? ystart_f:0); 
+        int xend = (((int)(xstart + width - 1)) < img.cols ? ((int)(xstart + width - 1)) : img.cols - 1);
+        int yend = (((int)(ystart + height - 1)) < img.rows? ((int)(ystart + height - 1)) : img.rows - 1);
+
+        float delta_x = ((float)xstart) / (float)img.cols;
+        float delta_y = ((float)ystart) / (float)img.rows;
+        float xratio = ((float)(xend - xstart))/(float)(img.cols);
+        float yratio = ((float)(yend - ystart))/(float)(img.rows);
+
+        std::vector<std::vector<float> > new_label;
+        std::vector<int> valid_index;
+        for (int i = 0; i < labels.size(); i++) {
+            labels[i][1] = (labels[i][1] - delta_x) / xratio;
+            labels[i][2] = (labels[i][2] - delta_y) / yratio;
+            labels[i][3] = (labels[i][3] - delta_x) / xratio;
+            labels[i][4] = (labels[i][4] - delta_y) / yratio;
+            float center_x = (labels[i][1] + labels[i][3]) * 0.5;
+            float center_y = (labels[i][2] + labels[i][4]) * 0.5;
+
+            if (center_x < 0 || center_x > 1 || center_y < 0 || center_y > 1) {
+
+            }
+            else {
+                labels[i][1] = (labels[i][1] > 0 ? labels[i][1] : 0);
+                labels[i][2] = (labels[i][2] > 0 ? labels[i][2] : 0);
+                labels[i][3] = (labels[i][3] < 1 ? labels[i][3] : 1);
+                labels[i][4] = (labels[i][4] < 1 ? labels[i][4] : 1);
+                valid_index.push_back(i);
+            }
+        }
+        for (int i = 0; i < valid_index.size(); i++) {
+            new_label.push_back(labels[valid_index[i]]);
+        }
+        labels.clear();
+        labels = new_label;
+
+        cv::Mat new_img = img(cv::Rect(xstart, ystart, xend - xstart + 1, yend - ystart + 1));
+        cv::resize(new_img, img, cv::Size(dest_size_w, dest_size_h));
+    }
+    //flip 
+    int rand2 = rand()%10;
+    if (rand2 <= 4) {
+        //flip
+        cv::flip(img, img, 1);
+        for (int i = 0; i < labels.size(); i++) {
+            float tmp = labels[i][1];
+            labels[i][1] = 1 - labels[i][3];
+            labels[i][3] = 1 - tmp;
+        }
+    }
+    return labels;
+}
+
+
 // This function is called on prefetch thread
 template<typename Dtype>
 void AnnoDataLayer<Dtype>::load_batch(Batch<Dtype>* batch) {
+    std::vector<std::vector<std::vector<float> > > labels_vec;
   CPUTimer batch_timer;
   batch_timer.Start();
   double read_time = 0;
@@ -129,6 +261,7 @@ void AnnoDataLayer<Dtype>::load_batch(Batch<Dtype>* batch) {
   CPUTimer timer;
   CHECK(batch->data_.count());
   CHECK(this->transformed_data_.count());
+
 
   // Reshape according to the first datum of each batch
   // on single input batches allows for inputs of varying dimension.
@@ -160,6 +293,7 @@ void AnnoDataLayer<Dtype>::load_batch(Batch<Dtype>* batch) {
   for (int item_id = 0; item_id < batch_size; ++item_id) {
     timer.Start();
 
+
     if (img_fetch_index_ >= list_vec_.size()) {
         img_fetch_index_ = 0;
         std::random_shuffle(list_vec_.begin(), list_vec_.end());
@@ -168,13 +302,22 @@ void AnnoDataLayer<Dtype>::load_batch(Batch<Dtype>* batch) {
     // get a datum
     //Datum& datum = *(reader_.full().pop("Waiting for data"));
     Datum datum;
-    cv::Mat img = cv::imread(img_name_2);
+    //cv::Mat img = cv::imread(img_name_2);
+    cv::Mat img;
+
+    std::vector<std::vector<float> > this_label;
+
+    this_label = read_and_transform_img(list_vec_[img_fetch_index_], img);
+
+    
+    labels_vec.push_back(this_label);
+
     CHECK(img.data) << "Read image failed: " << img_name_2;
     std::vector<int> img_param;
     img_param.push_back(img.rows);
     img_param.push_back(img.cols);
     img_size_translate_param.push_back(img_param);
-    cv::resize(img, img, cv::Size(this->layer_param().anno_data_param().resize_w(), this->layer_param().anno_data_param().resize_h()));
+    //cv::resize(img, img, cv::Size(this->layer_param().anno_data_param().resize_w(), this->layer_param().anno_data_param().resize_h()));
     CVMatToDatum(img, &datum);
     datum.set_label(0); // set a fake label
     //status = ReadImageToDatum(img_name_2, 0, this->layer_param_.anno_data_param().resize_h(), this->layer_param_.anno_data_param().resize_w(), true, "jpg", &datum);
@@ -194,47 +337,18 @@ void AnnoDataLayer<Dtype>::load_batch(Batch<Dtype>* batch) {
   }
   // Copy label.
   // computing the number of all labels
+  
+
+
   if (this->output_labels_) {
       int obj_nums = 0;
-      for (int i = 0; i < mini_batch_img_names.size(); i++) {
-          if (labels_.find(mini_batch_img_names[i]) == labels_.end()) {
-              // load label from gt file
-              const std::string img_name = this->layer_param_.anno_data_param().gt_path() + "/" + mini_batch_img_names[i] + ".txt";
-              std::ifstream gt_file(img_name.c_str());
-              CHECK(gt_file.is_open()) << "Fail to open gt file of " << mini_batch_img_names[i];
-              int label = 0;
-              float xmin = 0, ymin = 0, xmax = 0, ymax = 0;
-              std::vector<std::vector<float> > label_for_img;
-              while (gt_file >> label >> xmin >> ymin >> xmax >> ymax) {
-                std::vector<float> tmp_label;
-                
-                // do coordinate transform due to image transform
-                float x_ratio = (float)(this->layer_param().anno_data_param().resize_w())
-                    /(float)(img_size_translate_param[i][1]);
-                float y_ratio = (float)(this->layer_param().anno_data_param().resize_h())
-                    /(float)(img_size_translate_param[i][0]);
-                
-                float w_mmax = (float)(this->layer_param().anno_data_param().resize_w());
-                float h_mmax = (float)(this->layer_param().anno_data_param().resize_h());
-                xmin = (xmin*x_ratio)/w_mmax;
-                ymin = (ymin*y_ratio)/h_mmax;
-                xmax = (xmax*x_ratio)/w_mmax;
-                ymax = (ymax*y_ratio)/h_mmax;
-                tmp_label.push_back(label);
-                tmp_label.push_back(xmin);
-                tmp_label.push_back(ymin);
-                tmp_label.push_back(xmax);
-                tmp_label.push_back(ymax);
-                if (ymax - ymin > 300) {
-                    LOG(INFO) << mini_batch_img_names[i] << ymax << "-" << ymin;
-                }
 
-                label_for_img.push_back(tmp_label); 
-              }
-              labels_.insert(std::pair<std::string, std::vector<std::vector<float> > >(mini_batch_img_names[i], label_for_img));
-          }
-          obj_nums += labels_[mini_batch_img_names[i]].size();
+
+      for (int i = 0; i < labels_vec.size(); i++) {
+          obj_nums += labels_vec[i].size();
       }
+
+
       std::vector<int> label_shape;
       label_shape.push_back(1);
       label_shape.push_back(1);
@@ -242,23 +356,21 @@ void AnnoDataLayer<Dtype>::load_batch(Batch<Dtype>* batch) {
       label_shape.push_back(6);
       batch->label_.Reshape(label_shape);
       top_label = batch->label_.mutable_cpu_data();
+
       int idx = 0;
+      
       for (int i = 0; i < mini_batch_img_names.size(); i++) {
-          std::vector<std::vector<float> >& tmp_label = 
-              labels_[mini_batch_img_names[i]];
-          for (int obj_index = 0; obj_index < labels_[mini_batch_img_names[i]].size(); obj_index ++) {
+          std::vector<std::vector<float> >& tmp_label = labels_vec[i];
+
+          for (int obj_index = 0; 
+                  obj_index < tmp_label.size();
+                  obj_index ++) {
               top_label[idx++] = i;
               top_label[idx++] = tmp_label[obj_index][0];
               top_label[idx++] = tmp_label[obj_index][1];
               top_label[idx++] = tmp_label[obj_index][2];
               top_label[idx++] = tmp_label[obj_index][3];
               top_label[idx++] = tmp_label[obj_index][4];
-              if (top_label[idx-1] > 300) {
-                  LOG(INFO) << mini_batch_img_names[i];
-                  for (int t = 0; t < 5; t++) {
-                      LOG(INFO) << tmp_label[obj_index][t];
-                  }
-              }
           }
       }
 
@@ -268,6 +380,7 @@ void AnnoDataLayer<Dtype>::load_batch(Batch<Dtype>* batch) {
   DLOG(INFO) << "Prefetch batch: " << batch_timer.MilliSeconds() << " ms.";
   DLOG(INFO) << "     Read time: " << read_time / 1000 << " ms.";
   DLOG(INFO) << "Transform time: " << trans_time / 1000 << " ms.";
+
 }
 
 INSTANTIATE_CLASS(AnnoDataLayer);
