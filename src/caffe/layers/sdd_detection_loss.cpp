@@ -67,6 +67,8 @@ void SddDetectionLossLayer<Dtype>::LayerSetUp(
 
     loc_top_vec_.push_back(&loc_loss_top_);
 
+    loc_loss_layer_->SetUp(loc_bottom_vec_, loc_top_vec_);
+
 
     generate_default_windows();
 
@@ -567,8 +569,12 @@ void SddDetectionLossLayer<Dtype>::get_top_score_negatives(
         int row = default_windows_[win_ind].row;
         int col = default_windows_[win_ind].col;
 
-        float max_conf = 0;
+        int channel_index = ratio_scale_ind*(detect_param_.label_num() + 4);
+
+        float max_conf = bottom[from_ind]->data_at(img_idx, 
+                channel_index, row, col);
         int max_conf_label = 0;
+
         for (int label = 1; label < detect_param_.label_num(); label++) {
             float tmp_conf = 0;
             int channel_idx = ratio_scale_ind * (detect_param_.label_num() + 4) 
@@ -579,6 +585,11 @@ void SddDetectionLossLayer<Dtype>::get_top_score_negatives(
                 max_conf_label = label;
             }
         }
+        
+        if (max_conf_label == 0) {
+            continue;
+        }
+
         WinConf win_conf;
         win_conf.conf = max_conf;
         win_conf.win_ind = win_ind;
@@ -708,23 +719,23 @@ void SddDetectionLossLayer<Dtype>::get_match_score(
     
 
     for (int i = 0; i < default_windows_.size(); i++) {
+        int from_index = default_windows_[i].from_index;
+        int ratio_scale_index = default_windows_[i].ratio_scale_index;
+        float center_row = default_windows_[i].center_row;
+        float center_col = default_windows_[i].center_col;
+
+        float ratio = detect_param_.default_box_param(from_index).ratio_scale(ratio_scale_index).ratio();
+        float scale = detect_param_.default_box_param(from_index).ratio_scale(ratio_scale_index).scale();
+
+        float pred_w = scale * sqrt(ratio);
+        float pred_h = scale / sqrt(ratio);
+
+        float pred_xmin = center_col - 0.5 * pred_w;
+        float pred_ymin = center_row - 0.5 * pred_h;
+        float pred_xmax = center_col + 0.5 * pred_w;
+        float pred_ymax = center_row + 0.5 * pred_h;
+
         for (int j = 0; j < gt_data.size(); j++) {
-            int from_index = default_windows_[i].from_index;
-            int ratio_scale_index = default_windows_[i].ratio_scale_index;
-            float center_row = default_windows_[i].center_row;
-            float center_col = default_windows_[i].center_col;
-
-            float ratio = detect_param_.default_box_param(from_index).ratio_scale(ratio_scale_index).ratio();
-            float scale = detect_param_.default_box_param(from_index).ratio_scale(ratio_scale_index).scale();
-
-            float pred_w = scale * sqrt(ratio);
-            float pred_h = scale / sqrt(ratio);
-
-            float pred_xmin = center_col - 0.5 * pred_w;
-            float pred_ymin = center_row - 0.5 * pred_h;
-            float pred_xmax = center_col + 0.5 * pred_w;
-            float pred_ymax = center_row + 0.5 * pred_h;
-
             float gt_xmin = gt_data[j].xmin;
             float gt_ymin = gt_data[j].ymin;
             float gt_xmax = gt_data[j].xmax;
