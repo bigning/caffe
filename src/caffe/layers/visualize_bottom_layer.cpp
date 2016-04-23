@@ -36,7 +36,18 @@ void VisualizeBottomLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom
         for (int c = 0; c < 3; c++) {
             for (int h = 0; h < rows; h++) {
                 for (int w = 0; w < columns; w++) {
-                    img.data[img.step*h+w*3 + c] = p_data->data_at(i, c, h, w);
+                    if (c == 0) {
+                        img.data[img.step*h+w*3 + c] = p_data->data_at(i, c, h, w)
+                            + 104;
+                    }
+                    if (c == 1) {
+                        img.data[img.step*h+w*3 + c] = p_data->data_at(i, c, h, w)
+                            + 117;
+                    }
+                    if (c == 2) {
+                        img.data[img.step*h+w*3 + c] = p_data->data_at(i, c, h, w)
+                            + 123;
+                    }
                 }
             }
         }

@@ -338,6 +338,25 @@ void AnnoDataLayer<Dtype>::load_batch(Batch<Dtype>* batch) {
   // Copy label.
   // computing the number of all labels
   
+  for (int n = 0; n < batch->data_.num(); n++) {
+      for (int c = 0; c < batch->data_.channels(); c++) {
+          for (int h = 0; h < batch->data_.height(); h++) {
+              for (int w = 0; w < batch->data_.width(); w++) {
+                  int data_ind = batch->data_.offset(n, c, w, h);
+                  if (c == 0) {
+                    batch->data_.mutable_cpu_data()[data_ind] -= 104;
+                  }
+                  if (c == 1) {
+                    batch->data_.mutable_cpu_data()[data_ind] -= 117;
+                  }
+                  if (c == 2) {
+                    batch->data_.mutable_cpu_data()[data_ind] -= 123;
+                  }
+              }
+          }
+      }
+  }
+  
 
 
   if (this->output_labels_) {
