@@ -296,7 +296,9 @@ void AnnoDataLayer<Dtype>::load_batch(Batch<Dtype>* batch) {
 
     if (img_fetch_index_ >= list_vec_.size()) {
         img_fetch_index_ = 0;
-        std::random_shuffle(list_vec_.begin(), list_vec_.end());
+        if (this->layer_param_.anno_data_param().istest() == false) { 
+            std::random_shuffle(list_vec_.begin(), list_vec_.end());
+        }
     }
     const std::string img_name_2 = this->layer_param_.anno_data_param().image_path() + "/" + list_vec_[img_fetch_index_] + ".jpg";
     // get a datum
@@ -342,7 +344,7 @@ void AnnoDataLayer<Dtype>::load_batch(Batch<Dtype>* batch) {
       for (int c = 0; c < batch->data_.channels(); c++) {
           for (int h = 0; h < batch->data_.height(); h++) {
               for (int w = 0; w < batch->data_.width(); w++) {
-                  int data_ind = batch->data_.offset(n, c, w, h);
+                  int data_ind = batch->data_.offset(n, c, h, w);
                   if (c == 0) {
                     batch->data_.mutable_cpu_data()[data_ind] -= 104;
                   }

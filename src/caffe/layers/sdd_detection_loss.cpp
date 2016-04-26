@@ -71,8 +71,21 @@ void SddDetectionLossLayer<Dtype>::LayerSetUp(
 
 
     generate_default_windows();
-
     detect_param_ = this->layer_param_.detection_param();
+
+    //set up softmax_layer_
+    LayerParameter softmax_param(this->layer_param_);
+    softmax_param.set_type("Softmax");
+    softmax_layer_ = LayerRegistry<Dtype>::CreateLayer(softmax_param);
+
+    std::vector<int> softmax_shape;
+    softmax_shape.push_back(default_windows_.size())
+    softmax_shape.push_back(detect_param_.label_num());
+    original_score_.Reshape(softmax_shape);
+    prob_.Reshape(softmax_shape);
+    softmax_bottom_vec_.push_back(&original_score_);
+    softmax_top_vec_.push_back(&prob_);
+    softmax_layer_->SetUp(softmax_bottom_vec_, softmax_top_vec_);
 }
 
 template <typename Dtype>
@@ -131,7 +144,7 @@ void SddDetectionLossLayer<Dtype>::Forward_cpu(
     float normalizer = match_num_;
     top[0]->mutable_cpu_data()[0] = 
         (conf_loss_top_.mutable_cpu_data()[0] + 
-         loc_loss_top_.mutable_cpu_data()[0]) / normalizer;
+         detect_param_.loc_loss_weight() * loc_loss_top_.mutable_cpu_data()[0]) / normalizer;
 
     //LOG(INFO) << "match_num: " << match_num_;
     //LOG(INFO) << "neg_num: " << neg_windows_.size();
@@ -331,7 +344,7 @@ void SddDetectionLossLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
         loc_loss_layer_->Backward(loc_top_vec_, loc_propagate_down, 
                 loc_bottom_vec_);
         Dtype normalizer = match_num_;
-        Dtype loss_weight = top[0]->cpu_diff()[0] / normalizer;
+        Dtype loss_weight = detect_param_.loc_loss_weight() * top[0]->cpu_diff()[0] / normalizer;
         caffe_scal(loc_pred_.count(), loss_weight, loc_pred_.mutable_cpu_diff());
 
         const Dtype* loc_pred_diff = loc_pred_.cpu_diff();
@@ -560,33 +573,46 @@ void SddDetectionLossLayer<Dtype>::get_top_score_negatives(
         return;
     }
 
+    // run softmax firstly to get score, then select windows with maximum score
+    Dtype* original_data = original_score_.mutable_cpu_data();
+    int original_data_ind = 0;
     for (int win_ind = 0; win_ind < default_windows_.size(); win_ind++) {
-        if (is_matched_[win_ind] > 0) {
-            continue;
-        }
         int from_ind = default_windows_[win_ind].from_index;
         int ratio_scale_ind = default_windows_[win_ind].ratio_scale_index;
         int row = default_windows_[win_ind].row;
         int col = default_windows_[win_ind].col;
 
-        int channel_index = ratio_scale_ind*(detect_param_.label_num() + 4);
-
-        float max_conf = bottom[from_ind]->data_at(img_idx, 
-                channel_index, row, col);
-        int max_conf_label = 0;
-
-        for (int label = 1; label < detect_param_.label_num(); label++) {
-            float tmp_conf = 0;
+        for (int label = 0; label < detect_param_.label_num(); label++) {
             int channel_idx = ratio_scale_ind * (detect_param_.label_num() + 4) 
                 + label;
-            tmp_conf = bottom[from_ind]->data_at(img_idx, channel_idx, row, col);
+            original_data[original_data_ind++] = bottom[from_ind]->
+                data_at(img_idx, channel_idx, row, col);
+        }
+    }
+    CHECK_EQ(original_data_ind,
+            default_windows_.size()*detect_param_.label_num());
+    softmax_layer_->Reshape(softmax_bottom_vec_, softmax_top_vec_);
+    softmax_layer_->Forward(softmax_bottom_vec_, softmax_top_vec_);
+    
+
+    const Dtype* prob_data = prob_.cpu_data();
+    for (int win_ind = 0; win_ind < default_windows_.size(); win_ind++) {
+        if (is_matched_[win_ind] > 0) {
+            continue;
+        }
+
+        int data_ind = win_ind * detect_param_.label_num(); 
+        float max_conf = prob_data[data_ind];
+        int max_label = 0;
+        for (int label_id = 1; label_id < detect_param_.label_num(); label_id++) {
+            float tmp_conf = prob_data[data_ind + label_id];
             if (tmp_conf > max_conf) {
                 max_conf = tmp_conf;
-                max_conf_label = label;
+                max_label = label_id;
             }
         }
         
-        if (max_conf_label == 0) {
+        if (max_label == 0) {
             continue;
         }
 

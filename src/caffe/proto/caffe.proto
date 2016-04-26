@@ -257,7 +257,13 @@ message DetectionParam{
     optional int32 label_num = 1;
     repeated DefaultBoxParam default_box_param = 2; 
     optional int32 neg_pos_ratio = 3 [default = 3];
+    optional float loc_loss_weight = 6 [default = 1.0];
+
+    //for prediction
+    optional float min_conf = 4 [default = 0.01];
+    optional bool do_nms = 5 [default = true];
 }
+
 
 // A message that stores the solver snapshots
 message SolverState {
@@ -701,6 +707,8 @@ message AnnoDataParameter {
     // resized image width and height
     optional uint32 resize_w = 5;
     optional uint32 resize_h = 6;
+
+    optional bool istest = 7 [default = false];
 }
 
 message DropoutParameter {
