@@ -79,7 +79,7 @@ void SddDetectionLossLayer<Dtype>::LayerSetUp(
     softmax_layer_ = LayerRegistry<Dtype>::CreateLayer(softmax_param);
 
     std::vector<int> softmax_shape;
-    softmax_shape.push_back(default_windows_.size())
+    softmax_shape.push_back(default_windows_.size());
     softmax_shape.push_back(detect_param_.label_num());
     original_score_.Reshape(softmax_shape);
     prob_.Reshape(softmax_shape);
