@@ -792,7 +792,7 @@ void SddDetectionLossLayer<Dtype>::get_match_score(
             float gt_xmin = gt_data[j].xmin - 0.5 * gt_data[j].xmax;
             float gt_ymin = gt_data[j].ymin - 0.5 * gt_data[j].ymax;
             float gt_xmax = gt_data[j].xmin + 0.5 * gt_data[j].xmax;
-            float gt_ymax = gt_data[j].ymax + 0.5 * gt_data[j].ymax;
+            float gt_ymax = gt_data[j].ymin + 0.5 * gt_data[j].ymax;
 
             CHECK_GE(gt_xmax , gt_xmin) << "center_x" << gt_data[j].xmin << " w=" << gt_data[j].xmax;
             CHECK_GE(gt_ymax , gt_ymin) << "center_y" << gt_data[j].ymin << " h=" << gt_data[j].ymax;
