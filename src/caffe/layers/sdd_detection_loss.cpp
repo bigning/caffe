@@ -269,6 +269,14 @@ void SddDetectionLossLayer<Dtype>::prepare_for_loc_loss(
             float pred_ymax = bottom[from_ind]->data_at(img_ind, 
                     channel_ind + 3, row, col);
 
+            float small_num = 0.00000001;
+            if (pred_xmax < small_num) {
+                pred_xmax = small_num;
+            }
+            if (pred_ymax < small_num) {
+                pred_ymax = small_num;
+            }
+
             // reference: faster-rcnn
             loc_pred_data[pred_data_ind++] = 
                 (pred_xmin - win.center_col)/win.width;
