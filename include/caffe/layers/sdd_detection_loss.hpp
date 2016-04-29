@@ -180,6 +180,10 @@ class SddDetectionLossLayer: public LossLayer<Dtype> {
       // the default window center original coordinate (0,1,2,,,)
       int row;
       int col;
+
+      //default window height and width;
+      float width;
+      float height;
   };
   std::vector<DefaultWindowIndexStruct> default_windows_;
   std::map<int, std::vector<int> > gt2default_windows_;

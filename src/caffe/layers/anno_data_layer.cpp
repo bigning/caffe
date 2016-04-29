@@ -151,10 +151,13 @@ AnnoDataLayer<Dtype>::read_and_transform_img(std::string& img_id,
         xmax = (xmax)/w_mmax;
         ymax = (ymax)/h_mmax;
         tmp_label.push_back(label);
-        tmp_label.push_back(xmin);
-        tmp_label.push_back(ymin);
-        tmp_label.push_back(xmax);
-        tmp_label.push_back(ymax);
+
+        float center_x = (xmin+xmax) / 2.0;
+        float center_y = (ymin + ymax) / 2.0;
+        tmp_label.push_back(center_x);
+        tmp_label.push_back(center_y);
+        tmp_label.push_back(xmax - xmin);
+        tmp_label.push_back(ymax - ymin);
 
         labels.push_back(tmp_label); 
   }

@@ -27,6 +27,7 @@ void VisualizeBottomLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom
     Blob<Dtype>* p_data = bottom[0];
     Blob<Dtype>* p_label = bottom[1];
 
+
     int rows = p_data->height();
     int columns = p_data->width();
     LOG(INFO) << p_label->height() << " " << p_label->width(); 
@@ -51,6 +52,8 @@ void VisualizeBottomLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom
                 }
             }
         }
+        
+        if (p_label->count() > 2*p_data->num()) {
 
        for (int label_index = 0; label_index < p_label->height(); label_index++) {
             int img_index = p_label->data_at(0, 0, label_index, 0);
@@ -65,10 +68,12 @@ void VisualizeBottomLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom
             float y2 = p_label->data_at(0,0, label_index, 5)*(float)(rows);
             cv::rectangle(img, cv::Rect(x1,y1,x2-x1+1,y2-y1+1), cv::Scalar(0,0,255));
        } 
+        }
        char filename[1000];
        snprintf(filename, 1000, "%s/%d_%d.jpg",this->layer_param().visualize_bottom_param().img_save_path().c_str(), i, rand()%1000);
        cv::imwrite(filename, img);
     }
+    LOG(INFO) << "visualize done";
   }
 
 
