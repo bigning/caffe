@@ -146,46 +146,6 @@ void SddDetectionLossLayer<Dtype>::Forward_cpu(
         (conf_loss_top_.mutable_cpu_data()[0] + 
          detect_param_.loc_loss_weight() * loc_loss_top_.mutable_cpu_data()[0]) / normalizer;
 
-    //LOG(INFO) << "match_num: " << match_num_;
-    //LOG(INFO) << "neg_num: " << neg_windows_.size();
-    
-    // generate bottom data for two loss_layer
-    
-    //check_match_result(bottom);
-
-    //NOTE! NOTE!
-    //NOTE! NOTE! NOTE!
-    //NOTE! NOTE!
-    //input of loc_layer_loss_ must have the size of (1, n*4), n is the number of matched window
-    //
-
-
-    /*
-  // The forward pass computes the softmax prob values.
-  softmax_layer_->Forward(softmax_bottom_vec_, softmax_top_vec_);
-  const Dtype* prob_data = prob_.cpu_data();
-  const Dtype* label = bottom[1]->cpu_data();
-  int dim = prob_.count() / outer_num_;
-  int count = 0;
-  Dtype loss = 0;
-  for (int i = 0; i < outer_num_; ++i) {
-    for (int j = 0; j < inner_num_; j++) {
-      const int label_value = static_cast<int>(label[i * inner_num_ + j]);
-      if (has_ignore_label_ && label_value == ignore_label_) {
-        continue;
-      }
-      DCHECK_GE(label_value, 0);
-      DCHECK_LT(label_value, prob_.shape(softmax_axis_));
-      loss -= log(std::max(prob_data[i * dim + label_value * inner_num_ + j],
-                           Dtype(FLT_MIN)));
-      ++count;
-    }
-  }
-  top[0]->mutable_cpu_data()[0] = loss / get_normalizer(normalization_, count);
-  if (top.size() == 2) {
-    top[1]->ShareData(prob_);
-  }
-  */
 }
 
 template <typename Dtype>
@@ -298,6 +258,8 @@ void SddDetectionLossLayer<Dtype>::prepare_for_loc_loss(
             int col = win.col;
             int channel_ind = ratio_scale_ind*(detect_param_.label_num() + 4)
                 + detect_param_.label_num();
+
+            // actually here, xmin is the center_x, ymin is the center_y, xmax and ymax are width and height
             float pred_xmin = bottom[from_ind]->data_at(img_ind, 
                     channel_ind + 0, row, col);
             float pred_ymin = bottom[from_ind]->data_at(img_ind, 
@@ -306,6 +268,26 @@ void SddDetectionLossLayer<Dtype>::prepare_for_loc_loss(
                     channel_ind + 2, row, col);
             float pred_ymax = bottom[from_ind]->data_at(img_ind, 
                     channel_ind + 3, row, col);
+
+            // reference: faster-rcnn
+            loc_pred_data[pred_data_ind++] = 
+                (pred_xmin - win.center_col)/win.width;
+            loc_pred_data[pred_data_ind++] = 
+                (pred_ymin - win.center_row)/win.height;
+            loc_pred_data[pred_data_ind++] = 
+                log(pred_xmax/win.width);
+            loc_pred_data[pred_data_ind++] = 
+                log(pred_ymax/win.height);
+
+            loc_gt_data[gt_data_ind++] = 
+                (gt_xmin - win.center_col)/win.width;
+            loc_gt_data[gt_data_ind++] = 
+                (gt_ymin - win.center_row)/win.height;
+            loc_gt_data[gt_data_ind++] = 
+                log(gt_xmax/win.width);
+            loc_gt_data[gt_data_ind++] = 
+                log(gt_ymax/win.height);
+            /*
             loc_pred_data[pred_data_ind++] = pred_xmin;
             loc_pred_data[pred_data_ind++] = pred_ymin;
             loc_pred_data[pred_data_ind++] = pred_xmax;
@@ -315,6 +297,7 @@ void SddDetectionLossLayer<Dtype>::prepare_for_loc_loss(
             loc_gt_data[gt_data_ind++] = gt_ymin;
             loc_gt_data[gt_data_ind++] = gt_xmax;
             loc_gt_data[gt_data_ind++] = gt_ymax;
+            */
         }
     }
     CHECK_EQ(pred_data_ind/4, match_num_);
@@ -361,6 +344,42 @@ void SddDetectionLossLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
                 int row = default_windows_[match_wins[i]].row;
                 int col = default_windows_[match_wins[i]].col;
 
+                // center_x
+                int channel_idx = ratio_scale_ind *
+                    (detect_param_.label_num() + 4) +
+                    detect_param_.label_num();
+
+                int diff_ind = bottom[from_ind]->offset(img_idx, channel_idx, 
+                        row, col);
+                bottom[from_ind]->mutable_cpu_diff()[diff_ind] = 
+                    loc_pred_diff[ind++] / default_windows_[match_wins[i]].width;
+
+                // center_y
+                channel_idx++;
+                diff_ind = bottom[from_ind]->offset(img_idx, channel_idx, 
+                        row, col);
+                bottom[from_ind]->mutable_cpu_diff()[diff_ind] = 
+                    loc_pred_diff[ind++] / default_windows_[match_wins[i]].height;
+
+                // width 
+                channel_idx++;
+                diff_ind = bottom[from_ind]->offset(img_idx, channel_idx, 
+                        row, col);
+                int t = ind;
+                bottom[from_ind]->mutable_cpu_diff()[diff_ind] = 
+                    loc_pred_diff[t] / (loc_pred_.cpu_data()[t]);
+                ind++;
+
+                //height 
+                channel_idx++;
+                diff_ind = bottom[from_ind]->offset(img_idx, channel_idx, 
+                        row, col);
+                t = ind;
+                bottom[from_ind]->mutable_cpu_diff()[diff_ind] = 
+                    loc_pred_diff[t] / (loc_pred_.cpu_data()[t]);
+                ind++;
+
+                /*
                 for (int j = 0; j < 4; j++) {
                     int channel_idx = ratio_scale_ind *
                         (detect_param_.label_num() + 4) +
@@ -370,6 +389,7 @@ void SddDetectionLossLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
                     bottom[from_ind]->mutable_cpu_diff()[diff_ind] = 
                         loc_pred_diff[ind++];
                 }
+                */
             }
         }
         CHECK_EQ(ind / 4, match_num_);
@@ -506,6 +526,12 @@ void SddDetectionLossLayer<Dtype>::generate_default_windows() {
                     default_win.window_index = window_index;
                     default_win.row = row;
                     default_win.col = col;
+
+                    float ratio = detect_param_.default_box_param(from_index).ratio_scale(ratio_scale_index).ratio();
+                    float scale = detect_param_.default_box_param(from_index).ratio_scale(ratio_scale_index).scale();
+                    
+                    default_win.width = scale * sqrt(ratio);
+                    default_win.height = scale / sqrt(ratio);
 
                     default_windows_.push_back(default_win);
 
@@ -657,8 +683,9 @@ void SddDetectionLossLayer<Dtype>::check_match_result(const vector<Blob<Dtype>*>
                 DefaultWindowIndexStruct win = default_windows_[matched_wins[j]];
                 float ratio = detect_param_.default_box_param(win.from_index).ratio_scale(win.ratio_scale_index).ratio();
                 float scale = detect_param_.default_box_param(win.from_index).ratio_scale(win.ratio_scale_index).scale();
-                float w = scale * sqrt(ratio);
-                float h = scale / sqrt(ratio);
+                float w = win.width;
+                //float h = scale / sqrt(ratio);
+                float h = win.height;
                 float xmin = win.center_col - 0.5 * w;
                 float ymin = win.center_row - 0.5 * h;
 
