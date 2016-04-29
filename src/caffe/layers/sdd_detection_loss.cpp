@@ -287,6 +287,9 @@ void SddDetectionLossLayer<Dtype>::prepare_for_loc_loss(
             loc_pred_data[pred_data_ind++] = 
                 log(pred_ymax/win.height);
 
+            LOG(INFO) <<"pred_x log: "  << log(pred_xmax / win.width);
+            LOG(INFO) <<"pred_y log: "  << log(pred_ymax / win.height);
+
             loc_gt_data[gt_data_ind++] = 
                 (gt_xmin - win.center_col)/win.width;
             loc_gt_data[gt_data_ind++] = 
@@ -295,6 +298,10 @@ void SddDetectionLossLayer<Dtype>::prepare_for_loc_loss(
                 log(gt_xmax/win.width);
             loc_gt_data[gt_data_ind++] = 
                 log(gt_ymax/win.height);
+
+            LOG(INFO) <<"gtx log: "  << log(gt_xmax / win.width);
+            LOG(INFO) <<"gt_y log: "  << log(gt_ymax/ win.height);
+
             /*
             loc_pred_data[pred_data_ind++] = pred_xmin;
             loc_pred_data[pred_data_ind++] = pred_ymin;
