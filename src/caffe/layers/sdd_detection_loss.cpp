@@ -789,10 +789,10 @@ void SddDetectionLossLayer<Dtype>::get_match_score(
         float pred_ymax = center_row + 0.5 * pred_h;
 
         for (int j = 0; j < gt_data.size(); j++) {
-            float gt_xmin = gt_data[j].xmin;
-            float gt_ymin = gt_data[j].ymin;
-            float gt_xmax = gt_data[j].xmax;
-            float gt_ymax = gt_data[j].ymax;
+            float gt_xmin = gt_data[j].xmin - 0.5 * gt_data[j].xmax;
+            float gt_ymin = gt_data[j].ymin - 0.5 * gt_data[j].ymax;
+            float gt_xmax = gt_data[j].xmin + 0.5 * gt_data[j].xmax;
+            float gt_ymax = gt_data[j].ymax + 0.5 * gt_data[j].ymax;
 
             float overlap_area = 0;
             if (pred_xmin > gt_xmax || gt_xmin > pred_xmax) {

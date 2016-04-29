@@ -213,10 +213,10 @@ AnnoDataLayer<Dtype>::read_and_transform_img(std::string& img_id,
         for (int i = 0; i < labels.size(); i++) {
             labels[i][1] = (labels[i][1] - delta_x) / xratio;
             labels[i][2] = (labels[i][2] - delta_y) / yratio;
-            labels[i][3] = (labels[i][3] - delta_x) / xratio;
-            labels[i][4] = (labels[i][4] - delta_y) / yratio;
-            float center_x = (labels[i][1] + labels[i][3]) * 0.5;
-            float center_y = (labels[i][2] + labels[i][4]) * 0.5;
+            labels[i][3] = (labels[i][3] ) / xratio;
+            labels[i][4] = (labels[i][4] ) / yratio;
+            float center_x = labels[i][1] ;
+            float center_y = labels[i][2];
 
             if (center_x < 0 || center_x > 1 || center_y < 0 || center_y > 1) {
 
@@ -245,7 +245,7 @@ AnnoDataLayer<Dtype>::read_and_transform_img(std::string& img_id,
         cv::flip(img, img, 1);
         for (int i = 0; i < labels.size(); i++) {
             float tmp = labels[i][1];
-            labels[i][1] = 1 - labels[i][3];
+            labels[i][1] = 1 - labels[i][1];
             labels[i][3] = 1 - tmp;
         }
     }
