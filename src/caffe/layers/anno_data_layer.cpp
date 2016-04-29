@@ -246,7 +246,7 @@ AnnoDataLayer<Dtype>::read_and_transform_img(std::string& img_id,
         for (int i = 0; i < labels.size(); i++) {
             float tmp = labels[i][1];
             labels[i][1] = 1 - labels[i][1];
-            labels[i][3] = 1 - tmp;
+            //labels[i][3] = 1 - tmp;
         }
     }
     return labels;

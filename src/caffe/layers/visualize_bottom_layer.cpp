@@ -61,11 +61,25 @@ void VisualizeBottomLayer<Dtype>::Forward_cpu(const vector<Blob<Dtype>*>& bottom
                 continue;
             }
             int label_name = p_label->data_at(0, 0, label_index, 1);
+            float center_x = p_label->data_at(0, 0, label_index, 2);
+            float center_y = p_label->data_at(0, 0, label_index, 3);
+
+            float w = p_label->data_at(0, 0, label_index, 4);
+            float h = p_label->data_at(0, 0, label_index, 5);
+            
+            float x1 = (center_x - 0.5 * w) * (float)(columns);
+            float y1 = (center_y - 0.5 * h) * (float)(rows);
+            float x2 = (center_x + 0.5 * w) * (float)(columns);
+            float y2 = (center_y + 0.5 * h) * (float)(rows);
+
+
+            /*
             float x1 = p_label->data_at(0,0, label_index, 2)*(float)(columns);
             float y1 = p_label->data_at(0,0, label_index, 3)*(float)(rows);
 
             float x2 = p_label->data_at(0,0, label_index, 4)*(float)(columns);
             float y2 = p_label->data_at(0,0, label_index, 5)*(float)(rows);
+            */
             cv::rectangle(img, cv::Rect(x1,y1,x2-x1+1,y2-y1+1), cv::Scalar(0,0,255));
        } 
         }
