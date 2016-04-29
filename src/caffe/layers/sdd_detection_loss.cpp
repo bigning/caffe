@@ -70,8 +70,8 @@ void SddDetectionLossLayer<Dtype>::LayerSetUp(
     loc_loss_layer_->SetUp(loc_bottom_vec_, loc_top_vec_);
 
 
-    generate_default_windows();
     detect_param_ = this->layer_param_.detection_param();
+    generate_default_windows();
 
     //set up softmax_layer_
     LayerParameter softmax_param(this->layer_param_);
