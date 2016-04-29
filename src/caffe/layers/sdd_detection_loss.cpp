@@ -269,7 +269,7 @@ void SddDetectionLossLayer<Dtype>::prepare_for_loc_loss(
             float pred_ymax = bottom[from_ind]->data_at(img_ind, 
                     channel_ind + 3, row, col);
 
-            float small_num = 0.00000001;
+            float small_num = 0.00001;
             if (pred_xmax < small_num) {
                 pred_xmax = small_num;
             }
@@ -283,9 +283,11 @@ void SddDetectionLossLayer<Dtype>::prepare_for_loc_loss(
             loc_pred_data[pred_data_ind++] = 
                 (pred_ymin - win.center_row)/win.height;
             loc_pred_data[pred_data_ind++] = 
-                log(pred_xmax/win.width);
+                pred_xmax / win.width;
+                //log(pred_xmax/win.width);
             loc_pred_data[pred_data_ind++] = 
-                log(pred_ymax/win.height);
+                pred_ymax / win.height;
+                //log(pred_ymax/win.height);
 
             //LOG(INFO) <<"pred_x log: "  << log(pred_xmax / win.width);
             //LOG(INFO) <<"pred_y log: "  << log(pred_ymax / win.height);
@@ -295,9 +297,11 @@ void SddDetectionLossLayer<Dtype>::prepare_for_loc_loss(
             loc_gt_data[gt_data_ind++] = 
                 (gt_ymin - win.center_row)/win.height;
             loc_gt_data[gt_data_ind++] = 
-                log(gt_xmax/win.width);
+                gt_xmax/win.width;
+                //log(gt_xmax/win.width);
             loc_gt_data[gt_data_ind++] = 
-                log(gt_ymax/win.height);
+                gt_ymax/win.height;
+                //log(gt_ymax/win.height);
 
             //LOG(INFO) <<"gtx log: "  << log(gt_xmax / win.width);
             //LOG(INFO) <<"gt_y log: "  << log(gt_ymax/ win.height);
@@ -381,8 +385,10 @@ void SddDetectionLossLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
                 diff_ind = bottom[from_ind]->offset(img_idx, channel_idx, 
                         row, col);
                 int t = ind;
+                float w = bottom[from_ind]->data_at(img_idx, channel_idx, row, col);
                 bottom[from_ind]->mutable_cpu_diff()[diff_ind] = 
-                    loc_pred_diff[t] / (loc_pred_.cpu_data()[t]);
+                    loc_pred_diff[t] / default_windows_[match_wins[i]].width;
+                    //loc_pred_diff[t] / w;
                 ind++;
 
                 //height 
@@ -390,8 +396,10 @@ void SddDetectionLossLayer<Dtype>::Backward_cpu(const vector<Blob<Dtype>*>& top,
                 diff_ind = bottom[from_ind]->offset(img_idx, channel_idx, 
                         row, col);
                 t = ind;
+                //float h = 
                 bottom[from_ind]->mutable_cpu_diff()[diff_ind] = 
-                    loc_pred_diff[t] / (loc_pred_.cpu_data()[t]);
+                    loc_pred_diff[t] / default_windows_[match_wins[i]].height;
+                    //loc_pred_diff[t] / h;
                 ind++;
 
                 /*
