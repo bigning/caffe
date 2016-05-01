@@ -73,6 +73,13 @@ void SsdDetectLayer<Dtype>::Forward_cpu(
     forward_init();
     get_positive_windows(bottom);
 
+    if (results_.size() == 0) {
+        std::vector<int> top_shape(1,1);
+        top[0]->Reshape(top_shape);
+        LOG(INFO) << "no positive windows";
+        return;
+    }
+
     prepare_softmax_data(bottom);
     softmax_layer_->Reshape(softmax_bottom_vec_, softmax_top_vec_);
     softmax_layer_->Forward(softmax_bottom_vec_, softmax_top_vec_);
@@ -308,10 +315,22 @@ void SsdDetectLayer<Dtype>::get_positive_windows(
             res.confs = tmp_vec;;
             channel_ind = ratio_scale_ind * (detect_param_.label_num() + 4)
                 + detect_param_.label_num();
-            res.xmin = bottom[from_ind]->data_at(img_ind, channel_ind, row, col);
-            res.ymin = bottom[from_ind]->data_at(img_ind, channel_ind+1, row, col);
-            res.xmax = bottom[from_ind]->data_at(img_ind, channel_ind+2, row, col);
-            res.ymax = bottom[from_ind]->data_at(img_ind, channel_ind+3, row, col);
+
+            float center_x = bottom[from_ind]->data_at(img_ind, channel_ind, row, col);
+            float center_y = bottom[from_ind]->data_at(img_ind, channel_ind+1, row, col);
+            float w = bottom[from_ind]->data_at(img_ind, channel_ind+2, row, col);
+            float h = bottom[from_ind]->data_at(img_ind, channel_ind+3, row, col);
+
+            res.xmin = center_x - 0.5 * w;
+            res.ymin = center_y - 0.5 * h;
+            res.xmax = center_x + 0.5 * w;
+            res.ymax = center_y + 0.5 * h;
+
+            float small_num = 0.000001;
+            if (w < small_num || h < small_num) {
+                continue;
+            }
+
             results_.push_back(res);
         }
     }

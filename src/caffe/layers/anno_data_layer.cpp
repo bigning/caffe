@@ -224,8 +224,36 @@ AnnoDataLayer<Dtype>::read_and_transform_img(std::string& img_id,
             else {
                 labels[i][1] = (labels[i][1] > 0 ? labels[i][1] : 0);
                 labels[i][2] = (labels[i][2] > 0 ? labels[i][2] : 0);
-                labels[i][3] = (labels[i][3] < 1 ? labels[i][3] : 1);
-                labels[i][4] = (labels[i][4] < 1 ? labels[i][4] : 1);
+
+                float center_x = labels[i][1];
+                float center_y = labels[i][2];
+                float w = labels[i][3];
+                float h = labels[i][4];
+
+                if (center_x - 0.5 * w < 0) {
+                    w = w - (0.5 * w - center_x);
+                    center_x = 0.5 * w;
+                }
+                if (center_x + 0.5 * w > 1) {
+                    w = w - (center_x + 0.5 * w - 1);
+                    center_x = 1 - w * 0.5;
+                }
+
+                if (center_y - 0.5 * h < 0) {
+                    h = h - (0.5 * h - center_y);
+                    center_y = 0.5 * h;
+                }
+                if (center_y + 0.5 * h > 1) {
+                    h = h - (center_y + 0.5 * h - 1);
+                    center_y = 1 - h * 0.5;
+                }
+
+                labels[i][1] = center_x;
+                labels[i][2] = center_y;
+                labels[i][3] = w;
+                labels[i][4] = h;
+
+
                 valid_index.push_back(i);
             }
         }

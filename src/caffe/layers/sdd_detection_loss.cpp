@@ -8,6 +8,7 @@
 #include <opencv2/imgproc/imgproc.hpp>
 #include <math.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <algorithm>
 
 #include "caffe/layers/sdd_detection_loss.hpp"
@@ -132,8 +133,15 @@ void SddDetectionLossLayer<Dtype>::Forward_cpu(
     forward_init();
 
     get_match_and_negatives(bottom);
+    
+    if (detect_param_.check_match_res()) {
+        check_match_result(bottom);
+        return;
+    }
+
     prepare_for_conf_loss(bottom);
     prepare_for_loc_loss(bottom);
+
 
     conf_loss_layer_->Reshape(conf_bottom_vec_, conf_top_vec_);
     conf_loss_layer_->Forward(conf_bottom_vec_, conf_top_vec_);
@@ -558,6 +566,21 @@ void SddDetectionLossLayer<Dtype>::generate_default_windows() {
                     default_win.width = scale * sqrt(ratio);
                     default_win.height = scale / sqrt(ratio);
 
+                    float xmin = center_col - 0.5 * default_win.width;
+                    float xmax = center_col + 0.5 * default_win.width;
+                    float ymin = center_row - 0.5 * default_win.height;
+                    float ymax = center_row + 0.5 * default_win.height;
+
+                    xmin = (xmin > 0 ? xmin : 0);
+                    ymin = (ymin > 0 ? ymin : 0);
+                    xmax = (xmax < 1 ? xmax : 1);
+                    ymax = (ymax < 1 ? ymax : 1);
+
+                    default_win.center_col = (xmin + xmax) * 0.5;
+                    default_win.center_row = (ymin + ymax) * 0.5;
+                    default_win.width = xmax - xmin;
+                    default_win.height = ymax - ymin;
+
                     default_windows_.push_back(default_win);
 
                     window_index++;
@@ -577,6 +600,10 @@ void SddDetectionLossLayer<Dtype>::get_match_and_negatives(
 
     // convert ground_truth data to gt_data_
     Blob<Dtype>* p_label_blob = bottom[bottom.size() - 1];
+    if (detect_param_.check_match_res()) {
+        p_label_blob = bottom[bottom.size() - 2];
+    }
+
     //LOG(INFO) << "label blob height: " << p_label_blob->height();
     for (int i = 0; i <  p_label_blob->height(); i++) {
         GtData d;
@@ -688,9 +715,23 @@ void SddDetectionLossLayer<Dtype>::get_top_score_negatives(
 template <typename Dtype>
 void SddDetectionLossLayer<Dtype>::check_match_result(const vector<Blob<Dtype>*>& bottom) {
     int num = bottom[0]->num();
-    Blob<Dtype>* p_label_blob = bottom[bottom.size() - 1];
+    Blob<Dtype>* p_label_blob = bottom[bottom.size() - 2];
+    Blob<Dtype>* p_img_data = bottom[bottom.size() - 1];
     for (int i = 0; i < num; i++) {
         cv::Mat img(300, 300, CV_8UC3, cv::Scalar(255, 255, 255));
+
+        //
+        unsigned char* img_data = (unsigned char*)(img.data);
+        for (int row_ind = 0; row_ind < 300; row_ind++) {
+            for (int col_ind = 0; col_ind < 300; col_ind++) {
+                img_data[img.step * row_ind + col_ind * 3] = p_img_data->data_at(i, 0, row_ind, col_ind) + 104;
+                img_data[img.step * row_ind + col_ind * 3 + 1] = p_img_data->data_at(i, 1, row_ind, col_ind) + 117;
+                img_data[img.step * row_ind + col_ind * 3 + 2] = p_img_data->data_at(i, 2, row_ind, col_ind) + 123;
+            }
+        }
+
+        int rand1 = rand();
+
         std::map<int, std::vector<int> >::iterator it;
         for (it = gt2default_windows_.begin(); it != gt2default_windows_.end(); it++) {
             int label_index = it->first;
@@ -714,22 +755,54 @@ void SddDetectionLossLayer<Dtype>::check_match_result(const vector<Blob<Dtype>*>
                 float xmin = win.center_col - 0.5 * w;
                 float ymin = win.center_row - 0.5 * h;
 
+                /*
+                xmin = (xmin > 0 ? xmin : 0);
+                ymin = (ymin > 0 ? ymin : 0);
+                
+                if (xmin + w > 1) {
+                    w = w - (xmin + w - 1);
+                }
+                if (ymin + h > 1) {
+                    h = h - (ymin + h - 1);
+                }
+                */
+
                 xmin *= 300;
                 ymin *= 300;
                 w *= 300;
                 h *= 300;
 
+                CHECK_GE(xmin, 0);
+                CHECK_GE(300, ymin + h);
+
+                float gt_center_x = p_label_blob->data_at(0, 0, label_index, 2);
+                float gt_center_y = p_label_blob->data_at(0, 0, label_index, 3);
+                float gt_w = p_label_blob->data_at(0, 0, label_index, 4);
+                float gt_h = p_label_blob->data_at(0, 0, label_index, 5);
+
+                int gt_x = (gt_center_x - 0.5 * gt_w) * 300;
+                int gt_y = (gt_center_y - 0.5 * gt_h) * 300;
+                int gt_w_int = (gt_w)*300;
+                int gt_h_int = (gt_h) * 300;
+
+
+                cv::Mat tmp_img = img.clone();
+
+                cv::rectangle(tmp_img, cv::Rect(gt_x, gt_y, gt_w_int, gt_h_int), cv::Scalar(0, 0, 255));
+
                 if (j == 0) {
-                    cv::rectangle(img, cv::Rect(xmin, ymin, w, h), cv::Scalar(0, 255, 0));
+                    cv::rectangle(tmp_img, cv::Rect(xmin, ymin, w, h), cv::Scalar(0, 255, 0));
                 }
                 else {
-                    cv::rectangle(img, cv::Rect(xmin, ymin, w, h), cv::Scalar(255, 0, 0));
+                    cv::rectangle(tmp_img, cv::Rect(xmin, ymin, w, h), cv::Scalar(255, 0, 0));
                 }
+                char imgname[500];
+                std::string save_name = detect_param_.match_res_save_path() + "/%d_%d_%d_%d.jpg";
+                snprintf(imgname, 500, save_name.c_str(), i, rand1, label_index, j);
+                cv::imwrite(imgname, tmp_img);
             }
+
         }
-        char imgname[500];
-        snprintf(imgname, 500, "/home/bigning/projects/single_shot_multibox_detector/data/tmp2/%d.jpg", i);
-        cv::imwrite(imgname, img);
     }
 
 }
@@ -802,16 +875,16 @@ void SddDetectionLossLayer<Dtype>::get_match_score(
         float center_row = default_windows_[i].center_row;
         float center_col = default_windows_[i].center_col;
 
-        float ratio = detect_param_.default_box_param(from_index).ratio_scale(ratio_scale_index).ratio();
-        float scale = detect_param_.default_box_param(from_index).ratio_scale(ratio_scale_index).scale();
-
-        float pred_w = scale * sqrt(ratio);
-        float pred_h = scale / sqrt(ratio);
+        float pred_w = default_windows_[i].width;
+        float pred_h = default_windows_[i].height;
 
         float pred_xmin = center_col - 0.5 * pred_w;
         float pred_ymin = center_row - 0.5 * pred_h;
         float pred_xmax = center_col + 0.5 * pred_w;
         float pred_ymax = center_row + 0.5 * pred_h;
+        
+        CHECK_GE(pred_xmin, 0);
+        CHECK_GE(1, pred_ymax);
 
         for (int j = 0; j < gt_data.size(); j++) {
             float gt_xmin = gt_data[j].xmin - 0.5 * gt_data[j].xmax;

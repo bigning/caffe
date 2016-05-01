@@ -262,6 +262,9 @@ message DetectionParam{
     //for prediction
     optional float min_conf = 4 [default = 0.01];
     optional bool do_nms = 5 [default = true];
+
+    optional bool check_match_res = 7 [default = false];
+    optional string match_res_save_path = 8;
 }
 
 
